@@ -55,6 +55,26 @@ The install/upgrade path rebuilds the index table. Database triggers keep the
 index table synchronized when `borrowers` or `borrower_attributes` rows change.
 The `uninstall` method drops only this plugin table and its triggers.
 
+## Database size
+
+As a rough sizing point, a KTD MariaDB test database with 100,052 patrons and
+399,996 patron attributes produced 985,580 rows in
+`plugin_patron_natural_search`. MariaDB reported about 160 MiB for that table,
+including data and indexes:
+
+```text
+DATA_LENGTH  75.6 MiB
+INDEX_LENGTH 91.7 MiB
+total        159.6 MiB
+```
+
+That works out to roughly 1.6 MiB per 1,000 patrons, or about 160 MiB per
+100,000 patrons for this dataset. Real installations may differ substantially
+depending on how many searchable attributes exist, how long address/note fields
+are, how many grouped documents are enabled, and MariaDB/InnoDB page and
+FULLTEXT index behavior. Use 150-250 MiB per 100,000 patrons as a conservative
+starting estimate, then measure the local data after an index rebuild.
+
 ## Build
 
 From this directory:
