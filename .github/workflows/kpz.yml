@@ -1,0 +1,50 @@
+name: Build KPZ
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-kpz:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zip
+
+      - name: Build KPZ
+        id: build
+        run: |
+          kpz="$(./scripts/build-kpz)"
+          echo "kpz=$kpz" >> "$GITHUB_OUTPUT"
+          ls -lh "$kpz"
+
+      - name: Upload KPZ artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: koha-plugin-patron-natural-search-kpz
+          path: ${{ steps.build.outputs.kpz }}
+          if-no-files-found: error
+
+      - name: Attach KPZ to tag release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          gh release view "$tag" >/dev/null 2>&1 || \
+            gh release create "$tag" --title "$tag" --notes "Automated KPZ build for $tag"
+          gh release upload "$tag" "${{ steps.build.outputs.kpz }}" --clobber

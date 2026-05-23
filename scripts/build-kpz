@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$repo_root"
+
+plugin_class="Koha/Plugin/HKS3/PatronNaturalSearch.pm"
+plugin_name="koha-plugin-patron-natural-search"
+out_dir="${1:-dist}"
+
+version="$(
+    perl -ne 'if (/our\s+\$VERSION\s*=\s*["'\'']([^"'\'']+)["'\'']/) { print $1; exit }' "$plugin_class"
+)"
+
+if [[ -z "$version" ]]; then
+    echo "Could not determine plugin version from $plugin_class" >&2
+    exit 1
+fi
+
+mkdir -p "$out_dir"
+kpz="$out_dir/${plugin_name}-v${version}.kpz"
+rm -f "$kpz"
+
+zip -qr "$kpz" Koha README.md
+echo "$kpz"

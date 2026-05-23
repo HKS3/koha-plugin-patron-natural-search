@@ -60,5 +60,11 @@ The `uninstall` method drops only this plugin table and its triggers.
 From this directory:
 
 ```sh
-zip -r koha-plugin-patron-natural-search-v0.1.0.kpz Koha README.md
+./scripts/build-kpz
 ```
+
+The KPZ is written to `dist/`.
+
+GitHub Actions also builds the KPZ on pushes, pull requests, and manual
+workflow runs. Tag pushes matching `v*` attach the generated KPZ to the matching
+GitHub release.
