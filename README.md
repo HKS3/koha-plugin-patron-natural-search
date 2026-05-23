@@ -135,3 +135,9 @@ The KPZ is written to `dist/`.
 GitHub Actions also builds the KPZ on pushes, pull requests, and manual
 workflow runs. Tag pushes matching `v*` attach the generated KPZ to the matching
 GitHub release.
+
+## Attribution
+
+This plugin was developed with assistance from OpenAI Codex in a local Koha
+Testing Docker environment. The implementation and validation were performed
+against Koha 25.05 running on MariaDB 10.5 in KTD.
