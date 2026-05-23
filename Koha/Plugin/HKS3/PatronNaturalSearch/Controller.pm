@@ -128,8 +128,15 @@ sub search {
         my $match_mode_param = $c->validation->param('match_mode') // $c->validation->param('fulltext_mode');
         $match_mode_param = 'boolean' if _boolean( $c->validation->param('boolean_mode') );
         my ( $match_mode, $match_mode_warning ) = _match_mode($match_mode_param);
-        my $page          = _bounded_int( $c->validation->param('_page') // $c->validation->param('page'),     1,  1, 100000 );
-        my $per_page      = _bounded_int( $c->validation->param('_per_page') // $c->validation->param('per_page'), 20, 1, 100 );
+        my $draw          = _bounded_int( $c->validation->param('draw'), 0, 0, 1000000 );
+        my $dt_start      = $c->validation->param('start');
+        my $dt_length     = $c->validation->param('length');
+        my $per_page      = _bounded_int( $c->validation->param('_per_page') // $c->validation->param('per_page') // $dt_length, 20, 1, 100 );
+        my $page          = _bounded_int( $c->validation->param('_page') // $c->validation->param('page'), 1, 1, 100000 );
+        if ( defined $dt_start && length $dt_start ) {
+            my $start = _bounded_int( $dt_start, 0, 0, 10000000 );
+            $page = int( $start / $per_page ) + 1;
+        }
         my $offset        = ( $page - 1 ) * $per_page;
 
         my ( $fields, $search_groups, $warnings ) = _expand_search_fields($field_selector);
@@ -170,6 +177,33 @@ sub search {
             push @where_bind, $c->validation->param('firstletter') . '%';
         }
 
+        _add_like_filter( \@where, \@where_bind, 'b.cardnumber', $c->validation->param('column_cardnumber') );
+        _add_multi_like_filter(
+            \@where, \@where_bind,
+            [
+                qw(
+                    b.surname b.firstname b.preferred_name b.middle_name b.othernames
+                    b.streetnumber b.streettype b.address b.address2 b.city b.state b.zipcode b.country b.email
+                )
+            ],
+            $c->validation->param('column_name')
+        );
+        _add_multi_like_filter(
+            \@where, \@where_bind,
+            [qw(b.phone b.mobile b.phonepro b.B_phone b.altcontactphone)],
+            $c->validation->param('column_phone')
+        );
+        _add_like_filter( \@where, \@where_bind, 'CAST(b.dateofbirth AS CHAR)', $c->validation->param('column_date_of_birth') );
+        _add_simple_filter( \@where, \@where_bind, 'b.branchcode',             $c->validation->param('column_library') );
+        _add_simple_filter( \@where, \@where_bind, 'b.categorycode',           $c->validation->param('column_category') );
+        _add_like_filter( \@where, \@where_bind, 'CAST(b.dateexpiry AS CHAR)', $c->validation->param('column_expiry_date') );
+        _add_like_filter( \@where, \@where_bind, _checkouts_filter_sql(),      $c->validation->param('column_checkouts') );
+        _add_like_filter( \@where, \@where_bind, _account_balance_filter_sql(), $c->validation->param('column_account_balance') );
+        _add_like_filter( \@where, \@where_bind, 'b.borrowernotes',            $c->validation->param('column_staff_notes') );
+        _add_simple_filter( \@where, \@where_bind, 'b.sort1',                  $c->validation->param('column_statistics_1') );
+        _add_simple_filter( \@where, \@where_bind, 'b.sort2',                  $c->validation->param('column_statistics_2') );
+        _add_attribute_filter( \@where, \@where_bind, $c->validation->param('column_attributes') );
+
         my ( $score_sql, @score_bind ) = _score_sql(
             $dbh,
             {
@@ -207,10 +241,14 @@ sub search {
         }
 
         my $user = $c->stash('koha.user');
+        my ( $embed, $strings ) = _embed_from_header( $c->req->headers->header('x-koha-embed') );
+        my %api_params = ( user => $user );
+        $api_params{embed}   = $embed   if $embed;
+        $api_params{strings} = $strings if $strings;
         my @data;
         for my $id (@ids) {
             my $patron = $patron_by_id{$id} or next;
-            my $record = $patron->to_api( { user => $user } );
+            my $record = $patron->to_api( \%api_params );
             $record->{natural_score} = sprintf( '%.6f', $score_by_id{$id} // 0 ) + 0;
             push @data, $record;
         }
@@ -229,6 +267,9 @@ sub search {
                 per_page        => $per_page,
                 count           => scalar @data,
                 total           => 0 + $total,
+                draw            => 0 + $draw,
+                recordsTotal    => 0 + $total,
+                recordsFiltered => 0 + $total,
                 warnings        => $warnings,
                 data            => \@data,
             },
@@ -283,6 +324,27 @@ sub _expand_search_fields {
     @search_groups   = _uniq(@search_groups);
 
     return ( \@fields, \@search_groups, \@warnings );
+}
+
+sub _embed_from_header {
+    my ($header) = @_;
+
+    my %embed;
+    my $strings = 0;
+
+    for my $requested ( split /\s*,\s*/, $header // q{} ) {
+        next unless length $requested;
+
+        if ( $requested eq '+strings' ) {
+            $strings = 1;
+        } elsif ( $requested =~ /^(checkouts|overdues)\+count$/ ) {
+            $embed{ $1 . '_count' } = { is_count => 1 };
+        } elsif ( $requested =~ /^(account_balance|extended_attributes|library)$/ ) {
+            $embed{$1} = {};
+        }
+    }
+
+    return ( keys %embed ? \%embed : undef, $strings );
 }
 
 sub _default_standard_fields {
@@ -478,11 +540,101 @@ sub _restricted_branchcodes {
 sub _add_simple_filter {
     my ( $where, $bind, $column, $value ) = @_;
 
-    return unless defined $value && length $value;
+    $value = _dt_filter_value($value);
+    return unless length $value;
 
     push @{$where}, "$column = ?";
     push @{$bind},  $value;
     return;
+}
+
+sub _add_like_filter {
+    my ( $where, $bind, $column, $value ) = @_;
+
+    $value = _dt_filter_value($value);
+    return unless length $value;
+
+    push @{$where}, "$column LIKE ?";
+    push @{$bind},  "%$value%";
+    return;
+}
+
+sub _add_multi_like_filter {
+    my ( $where, $bind, $columns, $value ) = @_;
+
+    $value = _dt_filter_value($value);
+    return unless length $value;
+
+    push @{$where}, '(' . join( ' OR ', map { "$_ LIKE ?" } @{$columns} ) . ')';
+    push @{$bind},  map { "%$value%" } @{$columns};
+    return;
+}
+
+sub _add_attribute_filter {
+    my ( $where, $bind, $value ) = @_;
+
+    $value = _dt_filter_value($value);
+    return unless length $value;
+
+    push @{$where}, q{
+        EXISTS (
+            SELECT 1
+            FROM borrower_attributes ba_column_filter
+            LEFT JOIN borrower_attribute_types bat_column_filter
+              ON bat_column_filter.code = ba_column_filter.code
+            WHERE ba_column_filter.borrowernumber = b.borrowernumber
+              AND (
+                   ba_column_filter.code LIKE ?
+                OR ba_column_filter.attribute LIKE ?
+                OR bat_column_filter.description LIKE ?
+              )
+        )
+    };
+    push @{$bind}, ( "%$value%" ) x 3;
+    return;
+}
+
+sub _dt_filter_value {
+    my ($value) = @_;
+
+    $value = _trim($value);
+    $value =~ s/^\^(.*)\$$/$1/;
+
+    return $value;
+}
+
+sub _checkouts_filter_sql {
+    return q{
+        CONCAT(
+            (
+                SELECT COUNT(*)
+                FROM issues issues_overdue_filter
+                WHERE issues_overdue_filter.borrowernumber = b.borrowernumber
+                  AND issues_overdue_filter.date_due < NOW()
+            ),
+            ' / ',
+            (
+                SELECT COUNT(*)
+                FROM issues issues_count_filter
+                WHERE issues_count_filter.borrowernumber = b.borrowernumber
+            )
+        )
+    };
+}
+
+sub _account_balance_filter_sql {
+    return q{
+        CAST(
+            COALESCE(
+                (
+                    SELECT SUM(accountlines_balance_filter.amountoutstanding)
+                    FROM accountlines accountlines_balance_filter
+                    WHERE accountlines_balance_filter.borrowernumber = b.borrowernumber
+                ),
+                0
+            ) AS CHAR
+        )
+    };
 }
 
 sub _borrower_field {

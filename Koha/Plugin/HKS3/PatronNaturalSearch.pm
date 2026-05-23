@@ -12,7 +12,7 @@ use Koha::Patron::Categories;
 use Koha::Patron::Modifications;
 use Mojo::JSON qw(decode_json);
 
-our $VERSION = '0.1.0';
+our $VERSION = '0.1.1';
 
 our $metadata = {
     name            => 'Patron Natural Search',
@@ -20,7 +20,7 @@ our $metadata = {
     description     => 'MariaDB natural-language patron search API using FULLTEXT indexes',
     namespace       => 'patron_natural_search',
     date_authored   => '2026-05-22',
-    date_updated    => '2026-05-22',
+    date_updated    => '2026-05-23',
     minimum_version => '23.11',
     maximum_version => undef,
     version         => $VERSION,

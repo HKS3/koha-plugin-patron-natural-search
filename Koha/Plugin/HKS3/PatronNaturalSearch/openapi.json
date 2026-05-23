@@ -148,6 +148,97 @@
           "type": "string"
         },
         {
+          "name": "column_cardnumber",
+          "in": "query",
+          "description": "DataTables column filter for card number.",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "column_name",
+          "in": "query",
+          "description": "DataTables column filter for the name/address column.",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "column_phone",
+          "in": "query",
+          "description": "DataTables column filter for phone fields.",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "column_date_of_birth",
+          "in": "query",
+          "description": "DataTables column filter for date of birth.",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "column_library",
+          "in": "query",
+          "description": "DataTables column filter for library/branchcode.",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "column_category",
+          "in": "query",
+          "description": "DataTables column filter for patron category.",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "column_expiry_date",
+          "in": "query",
+          "description": "DataTables column filter for expiry date.",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "column_checkouts",
+          "in": "query",
+          "description": "DataTables column filter for overdues/checkouts count.",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "column_account_balance",
+          "in": "query",
+          "description": "DataTables column filter for account balance/fines.",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "column_staff_notes",
+          "in": "query",
+          "description": "DataTables column filter for staff notes.",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "column_statistics_1",
+          "in": "query",
+          "description": "DataTables column filter for sort 1.",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "column_statistics_2",
+          "in": "query",
+          "description": "DataTables column filter for sort 2.",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "column_attributes",
+          "in": "query",
+          "description": "DataTables column filter for patron attribute code, description, or value.",
+          "required": false,
+          "type": "string"
+        },
+        {
           "name": "page",
           "in": "query",
           "required": false,
@@ -176,6 +267,49 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 100
+        },
+        {
+          "name": "draw",
+          "in": "query",
+          "description": "DataTables draw counter.",
+          "required": false,
+          "type": "integer",
+          "minimum": 0
+        },
+        {
+          "name": "start",
+          "in": "query",
+          "description": "DataTables zero-based result offset.",
+          "required": false,
+          "type": "integer",
+          "minimum": 0
+        },
+        {
+          "name": "length",
+          "in": "query",
+          "description": "DataTables page length.",
+          "required": false,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        {
+          "name": "x-koha-embed",
+          "in": "header",
+          "required": false,
+          "description": "Koha REST embeds used by the patron DataTable.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "extended_attributes",
+              "checkouts+count",
+              "overdues+count",
+              "account_balance",
+              "library"
+            ]
+          },
+          "collectionFormat": "csv"
         }
       ],
       "responses": {
@@ -209,6 +343,15 @@
                 "type": "integer"
               },
               "total": {
+                "type": "integer"
+              },
+              "draw": {
+                "type": "integer"
+              },
+              "recordsTotal": {
+                "type": "integer"
+              },
+              "recordsFiltered": {
                 "type": "integer"
               },
               "warnings": {

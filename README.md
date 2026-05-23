@@ -19,7 +19,11 @@ http://pns-intra.localhost:8080/cgi-bin/koha/plugins/run.pl?class=Koha::Plugin::
 ```
 
 The page includes the usual patron-home actions such as new patron, quick add,
-and patron lists, plus a MariaDB FULLTEXT search form.
+and patron lists, plus a MariaDB FULLTEXT search form. Results are loaded via
+the plugin REST API into a Koha DataTable using the same result columns and
+column-visibility settings as the standard patron search. The table adds an
+attributes column and per-column search boxes; those column filters are sent to
+the plugin REST API.
 
 ## API
 

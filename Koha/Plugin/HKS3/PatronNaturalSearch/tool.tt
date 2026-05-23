@@ -1,3 +1,11 @@
+[% USE raw %]
+[% USE Koha %]
+[% USE Branches %]
+[% USE Categories %]
+[% USE AuthorisedValues %]
+[% USE TablesSettings %]
+[% USE To %]
+[% PROCESS 'i18n.inc' %]
 [% SET footerjs = 1 %]
 [% INCLUDE 'doc-head-open.inc' %]
 <title>Patron Natural Search</title>
@@ -29,63 +37,90 @@
                     </div>
                 [% END %]
 
-                <div class="page-section">
-                    <form id="pns-search-form" class="form-inline">
-                        <div class="form-group">
-                            <label for="pns-query">Search</label>
-                            <input id="pns-query" class="form-control" type="text" size="40" autocomplete="off">
-                        </div>
-                        <div class="form-group">
-                            <label for="pns-field">Field</label>
-                            <select id="pns-field" class="form-control">
-                                <option value="standard">Standard</option>
-                                <option value="all">All patron data</option>
-                                <option value="surname">Surname</option>
-                                <option value="cardnumber">Card number</option>
-                                <option value="userid">Username</option>
-                                <option value="all_emails">All emails</option>
-                                <option value="all_phones">All phones</option>
-                                <option value="full_address">Full address</option>
-                                <option value="borrowernumber">Borrowernumber</option>
-                                <option value="dateofbirth">Date of birth</option>
-                                <option value="sort1">Sort 1</option>
-                                <option value="sort2">Sort 2</option>
-                                [% IF attribute_search_options.size %]
-                                    <optgroup label="Patron attributes">
-                                        [% FOREACH attribute IN attribute_search_options %]
-                                            <option value="_ATTR_[% attribute.code | html %]">[% attribute.description | html %] ([% attribute.code | html %])</option>
-                                        [% END %]
-                                    </optgroup>
-                                [% END %]
-                            </select>
-                        </div>
-                        <label class="checkbox-inline">
-                            <input id="pns-fallback-like" type="checkbox" value="1">
-                            LIKE fallback
-                        </label>
-                        <label class="checkbox-inline">
-                            <input id="pns-boolean-mode" type="checkbox" value="1">
-                            Boolean mode
-                        </label>
-                        <button class="btn btn-primary" type="submit">Search</button>
-                    </form>
+                <div id="searchresults">
+                    <div class="page-section">
+                        <form id="pns-search-form" class="patron_search_form form-inline">
+                            <div class="form-group">
+                                <label for="pns-query">Search</label>
+                                <input id="pns-query" class="search_patron_filter form-control focus" type="text" size="40" autocomplete="off" />
+                            </div>
+                            <div class="form-group">
+                                <label for="pns-field">Field</label>
+                                <select id="pns-field" class="searchfieldstype_filter form-control">
+                                    <option value="standard">Standard</option>
+                                    <option value="all">All patron data</option>
+                                    <option value="surname">Surname</option>
+                                    <option value="cardnumber">Card number</option>
+                                    <option value="userid">Username</option>
+                                    <option value="all_emails">All emails</option>
+                                    <option value="all_phones">All phones</option>
+                                    <option value="full_address">Full address</option>
+                                    <option value="borrowernumber">Borrowernumber</option>
+                                    <option value="dateofbirth">Date of birth</option>
+                                    <option value="sort1">Sort 1</option>
+                                    <option value="sort2">Sort 2</option>
+                                    [% IF attribute_search_options.size %]
+                                        <optgroup label="Patron attributes">
+                                            [% FOREACH attribute IN attribute_search_options %]
+                                                <option value="_ATTR_[% attribute.code | html %]">[% attribute.description | html %] ([% attribute.code | html %])</option>
+                                            [% END %]
+                                        </optgroup>
+                                    [% END %]
+                                </select>
+                            </div>
+                            <label class="checkbox-inline">
+                                <input id="pns-fallback-like" type="checkbox" value="1" />
+                                LIKE fallback
+                            </label>
+                            <label class="checkbox-inline">
+                                <input id="pns-boolean-mode" type="checkbox" value="1" />
+                                Boolean mode
+                            </label>
+                            <button class="btn btn-primary search_patron_filter_btn" type="submit">Search</button>
+                            <button class="btn btn-default" id="pns-clear-search" type="button">Clear</button>
+                        </form>
+                    </div>
 
-                    <div id="pns-meta" style="margin: 1em 0;"></div>
-                    <div id="pns-error" class="alert alert-warning" style="display:none;"></div>
+                    <div class="browse">
+                        Browse by last name:
+                        [% SET alphabet = Koha.Preference('alphabet').split(' ') %]
+                        [% UNLESS alphabet.size %]
+                            [% alphabet = ['A' .. 'Z'] %]
+                        [% END %]
+                        [% FOREACH letter IN alphabet %]
+                            <a href="#" class="filterByLetter">[% letter | html %]</a>
+                        [% END %]
+                    </div>
 
-                    <table id="pns-results" class="table table-bordered table-striped" style="display:none;">
-                        <thead>
-                            <tr>
-                                <th>Score</th>
-                                <th>Card</th>
-                                <th>Name</th>
-                                <th>Library</th>
-                                <th>Category</th>
-                                <th>Expires</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
+                    <h3 style="display: none;" class="search_description" data-prefix="Patrons found for: %s"></h3>
+
+                    <div id="memberresultst_search_results" style="display:none;">
+                        <div class="info alert alert-info" style="display: none; margin: 1em 0;"></div>
+                        <div class="error alert alert-warning" style="display: none; margin: 1em 0"></div>
+
+                        <input type="hidden" class="firstletter_filter" value="" />
+                        <table id="memberresultst">
+                            <thead>
+                                <tr>
+                                    <th>Card</th>
+                                    <th>Name</th>
+                                    <th>Phone</th>
+                                    <th>Date of birth</th>
+                                    <th>Library</th>
+                                    <th>Category</th>
+                                    <th>Expires on</th>
+                                    <th>Checkouts</th>
+                                    <th>Fines</th>
+                                    <th>Notes</th>
+                                    <th>Sort 1</th>
+                                    <th>Sort 2</th>
+                                    <th>Attributes</th>
+                                    <th class="no-export">&nbsp;</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
                 </div>
             </main>
         </div>
@@ -95,91 +130,423 @@
     </div>
 </div>
 
-<script>
-const pnsApiUrl = "[% api_search_url | html %]";
-
-function pnsEscape(value) {
-    return String(value ?? "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
-}
-
-function pnsRender(payload) {
-    const rows = Array.isArray(payload.data) ? payload.data : [];
-    const table = document.getElementById("pns-results");
-    const tbody = table.querySelector("tbody");
-    const meta = document.getElementById("pns-meta");
-
-    meta.textContent = rows.length
-        ? `Showing ${rows.length} of ${payload.total} result(s).`
-        : "No results found.";
-
-    if (!rows.length) {
-        table.style.display = "none";
-        tbody.innerHTML = "";
-        return;
-    }
-
-    tbody.innerHTML = rows.map((row) => {
-        const patronId = encodeURIComponent(row.patron_id);
-        const name = [row.surname, row.firstname].filter(Boolean).join(", ");
-        return `
-            <tr>
-                <td>${pnsEscape(row.natural_score)}</td>
-                <td><a href="/cgi-bin/koha/circ/circulation.pl?borrowernumber=${patronId}">${pnsEscape(row.cardnumber)}</a></td>
-                <td><a href="/cgi-bin/koha/members/moremember.pl?borrowernumber=${patronId}">${pnsEscape(name)}</a></td>
-                <td>${pnsEscape(row.library_id)}</td>
-                <td>${pnsEscape(row.category_id)}</td>
-                <td>${pnsEscape(row.expiry_date)}</td>
-            </tr>
-        `;
-    }).join("");
-    table.style.display = "";
-}
-
-async function pnsSearch() {
-    const query = document.getElementById("pns-query").value.trim();
-    const field = document.getElementById("pns-field").value;
-    const fallbackLike = document.getElementById("pns-fallback-like").checked ? "1" : "0";
-    const matchMode = document.getElementById("pns-boolean-mode").checked ? "boolean" : "natural";
-    const params = new URLSearchParams({
-        query,
-        searchfieldstype: field,
-        match_mode: matchMode,
-        fallback_like: fallbackLike,
-        page: "1",
-        per_page: "50"
-    });
-    const error = document.getElementById("pns-error");
-    const meta = document.getElementById("pns-meta");
-
-    error.style.display = "none";
-    error.textContent = "";
-    meta.textContent = "Loading...";
-
-    try {
-        const response = await fetch(`${pnsApiUrl}?${params.toString()}`, {
-            headers: { Accept: "application/json" }
-        });
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
+[% MACRO jsinclude BLOCK %]
+    [% INCLUDE 'datatables.inc' %]
+    <script>
+        var table_settings = [% TablesSettings.GetTableSettings( 'members', 'member', 'memberresultst', 'json' ) | $raw %];
+        if ( table_settings && table_settings.columns ) {
+            table_settings.columns.splice(0, 1);
+            table_settings.columns.splice(table_settings.columns.length - 1, 0, {
+                columnname: "attributes",
+                is_hidden: 0,
+                cannot_be_modified: 0,
+                cannot_be_toggled: 0
+            });
+            if ( table_settings.default_display_length == -1 ) {
+                table_settings.default_display_length = 100;
+            }
         }
-        pnsRender(await response.json());
-    } catch (err) {
-        meta.textContent = "";
-        error.textContent = `Request failed: ${err.message}`;
-        error.style.display = "";
-    }
-}
 
-document.getElementById("pns-search-form").addEventListener("submit", (event) => {
-    event.preventDefault();
-    pnsSearch();
-});
-</script>
+        const pnsApiUrl = "[% api_search_url | html %]";
+        const pnsCategories = [% To.json(Categories.all.unblessed) | $raw %].map(function (category) {
+            category._id = category.categorycode;
+            category._str = category.description;
+            return category;
+        });
+        const pnsCategoriesMap = pnsCategories.reduce(function (map, category) {
+            map[category.categorycode.toLowerCase()] = category;
+            return map;
+        }, {});
+        const pnsLibraries = [% To.json(Branches.all) | $raw %].map(function (library) {
+            library._id = library.branchcode;
+            library._str = library.branchname;
+            return library;
+        });
+        const pnsLibrariesMap = pnsLibraries.reduce(function (map, library) {
+            map[library._id] = library;
+            return map;
+        }, {});
+        const pnsBsort1 = [% To.json(AuthorisedValues.Get('Bsort1')) | $raw %].map(function (value) {
+            value._id = value.authorised_value;
+            value._str = value.lib;
+            return value;
+        });
+        const pnsBsort1Map = pnsBsort1.reduce(function (map, value) {
+            map[value._id] = value;
+            return map;
+        }, {});
+        const pnsBsort2 = [% To.json(AuthorisedValues.Get('Bsort2')) | $raw %].map(function (value) {
+            value._id = value.authorised_value;
+            value._str = value.lib;
+            return value;
+        });
+        const pnsBsort2Map = pnsBsort2.reduce(function (map, value) {
+            map[value._id] = value;
+            return map;
+        }, {});
+        const pnsColumnFilterParams = [
+            "column_cardnumber",
+            "column_name",
+            "column_phone",
+            "column_date_of_birth",
+            "column_library",
+            "column_category",
+            "column_expiry_date",
+            "column_checkouts",
+            "column_account_balance",
+            "column_staff_notes",
+            "column_statistics_1",
+            "column_statistics_2",
+            "column_attributes",
+            null
+        ];
+
+        function pnsLibraryName(row) {
+            if (row.library && row.library.name) {
+                return row.library.name;
+            }
+            return pnsLibrariesMap[row.library_id] ? pnsLibrariesMap[row.library_id].branchname : row.library_id || "";
+        }
+
+        function pnsCategoryName(category_id) {
+            if (!category_id) {
+                return "";
+            }
+            const category = pnsCategoriesMap[category_id.toLowerCase()];
+            return category ? category.description : category_id;
+        }
+
+        function pnsNormalizeFilterValue(value) {
+            value = (value || "").trim();
+            const exactMatch = value.match(/^\^(.*)\$$/);
+            return exactMatch ? exactMatch[1] : value;
+        }
+
+        function pnsAttributesHtml(row) {
+            const attributes = Array.isArray(row.extended_attributes) ? row.extended_attributes : [];
+            if (!attributes.length) {
+                return "";
+            }
+
+            return "<ul class=\"pns-attributes\">" + attributes.map(function (attribute) {
+                const label = attribute.description || attribute.type || "";
+                const value = attribute.value || "";
+                return "<li><span class=\"attribute-code\">" + escape_str(label) + "</span>: " + escape_str(value) + "</li>";
+            }).join("") + "</ul>";
+        }
+
+        function pnsBuildParams(data) {
+            let length = parseInt(data.length, 10);
+            if (!length || length < 1 || length > 100) {
+                length = 100;
+            }
+            const start = parseInt(data.start, 10) || 0;
+            const params = {
+                query: $("#pns-query").val().trim(),
+                searchfieldstype: $("#pns-field").val(),
+                match_mode: $("#pns-boolean-mode").prop("checked") ? "boolean" : "natural",
+                fallback_like: $("#pns-fallback-like").prop("checked") ? "1" : "0",
+                page: Math.floor(start / length) + 1,
+                per_page: length,
+                draw: data.draw
+            };
+            const firstletter = $("#searchresults .firstletter_filter").val();
+            if (firstletter) {
+                params.firstletter = firstletter;
+            }
+            (data.columns || []).forEach(function (column, index) {
+                const param = pnsColumnFilterParams[index];
+                const value = pnsNormalizeFilterValue(column.search && column.search.value);
+                if (param && value) {
+                    params[param] = value;
+                }
+            });
+            return params;
+        }
+
+        function pnsUpdateSearchDescription() {
+            const description = $("#searchresults .search_description");
+            const query = $("#pns-query").val().trim();
+            const firstletter = $("#searchresults .firstletter_filter").val();
+            let text = "";
+
+            if (query) {
+                text = $("#pns-field option:selected").text() + ": " + query;
+            }
+            if (firstletter) {
+                text = text ? text + "; surname begins with '" + firstletter + "'" : "Surname begins with '" + firstletter + "'";
+            }
+
+            if (text) {
+                const prefix = description.data("prefix") || "Patrons found for: %s";
+                description.text(prefix.replace("%s", text)).show();
+            } else {
+                description.text("").hide();
+            }
+        }
+
+        $(document).ready(function () {
+            const parentBlock = $("#searchresults");
+            const resultsBlock = $("#memberresultst_search_results");
+            const errorNode = resultsBlock.find(".error");
+            const infoNode = resultsBlock.find(".info");
+            const tableNode = $("#memberresultst");
+            let searchHasRun = false;
+
+            function clearMessages() {
+                errorNode.hide().text("");
+                infoNode.hide().text("");
+            }
+
+            tableNode.kohaTable({
+                bKohaAjaxSVC: true,
+                serverSide: true,
+                processing: true,
+                searching: true,
+                ordering: false,
+                autoWidth: false,
+                fixedHeader: false,
+                dom: '<"dt-info"i><"top pager"<"table_entries"lp><"table_controls"B>>tr<"bottom pager"ip>',
+                pagingType: "full_numbers",
+                pageLength: [% Koha.Preference('PatronsPerPage') || 20 | html %],
+                lengthMenu: [[10, 20, 50, 100], [10, 20, 50, 100]],
+                ajax: function (data, callback) {
+                    if (!searchHasRun) {
+                        callback({
+                            draw: data.draw,
+                            recordsTotal: 0,
+                            recordsFiltered: 0,
+                            data: []
+                        });
+                        return;
+                    }
+
+                    clearMessages();
+                    $.ajax({
+                        url: pnsApiUrl,
+                        method: "GET",
+                        data: pnsBuildParams(data),
+                        headers: {
+                            Accept: "application/json",
+                            "x-koha-embed": "library,checkouts+count,overdues+count,account_balance,extended_attributes"
+                        },
+                        success: function (json) {
+                            if (json.warnings && json.warnings.length) {
+                                infoNode.text(json.warnings.join(" ")).show();
+                            }
+                            callback({
+                                draw: json.draw || data.draw,
+                                recordsTotal: json.recordsTotal || json.total || 0,
+                                recordsFiltered: json.recordsFiltered || json.total || 0,
+                                data: json.data || []
+                            });
+                        },
+                        error: function (xhr) {
+                            const response = xhr.responseJSON || {};
+                            const message = response.error || xhr.statusText || "Request failed";
+                            errorNode.text("Request failed: " + message).show();
+                            callback({
+                                draw: data.draw,
+                                recordsTotal: 0,
+                                recordsFiltered: 0,
+                                data: []
+                            });
+                        }
+                    });
+                },
+                columns: [
+                    {
+                        data: "cardnumber",
+                        searchable: true,
+                        render: function (data, type, row) {
+                            const patron_id = encodeURIComponent(row.patron_id);
+                            [% IF CAN_user_circulate_circulate_remaining_permissions %]
+                                return "<a href=\"/cgi-bin/koha/circ/circulation.pl?borrowernumber=" + patron_id + "\" title=\"[% I18N.t("Check out") | html %]\" class=\"patron_name\" data-borrowernumber=\"" + patron_id + "\" style=\"white-space:nowrap\">" + escape_str(data) + "</a>";
+                            [% ELSE %]
+                                return escape_str(data);
+                            [% END %]
+                        }
+                    },
+                    {
+                        data: "surname",
+                        searchable: true,
+                        render: function (data, type, row) {
+                            const patron_id = encodeURIComponent(row.patron_id);
+                            let rendered = "<a href=\"/cgi-bin/koha/members/moremember.pl?borrowernumber=" + patron_id + "\" class=\"patron_name\" data-borrowernumber=\"" + patron_id + "\" style=\"white-space:nowrap\">"
+                                + $patron_to_html(row, { invert_name: 1, showDiffFirstname: [% Koha.Preference('ShowPatronFirstnameIfDifferentThanPreferredname') ? 1 : 0 | html %] }) + "</a>";
+                            rendered += "<br/>";
+                            rendered += "<div class=\"address\"><ul>";
+                            rendered += $format_address(row, { no_line_break: true, include_li: true });
+                            if (row.email) {
+                                rendered += "<li class=\"patron_email\">" + _("Email: ") + "<a href=\"mailto:" + encodeURIComponent(row.email) + "\">" + escape_str(row.email) + "</a></li>";
+                            }
+                            rendered += "</ul></div>";
+                            return rendered;
+                        }
+                    },
+                    {
+                        data: "phone",
+                        searchable: true,
+                        render: function (data) {
+                            return escape_str(data);
+                        }
+                    },
+                    {
+                        data: "date_of_birth",
+                        type: "date",
+                        searchable: true,
+                        render: function (data) {
+                            return data ? "<span class=\"dateofbirth\">" + escape_str($date(data)) + "<span class=\"agehint\"> (" + _("%s years").format($get_age(data)) + ")</span></span>" : "";
+                        }
+                    },
+                    {
+                        data: "library_id",
+                        dataFilter: "libraries",
+                        searchable: true,
+                        render: function (data, type, row) {
+                            return escape_str(pnsLibraryName(row));
+                        }
+                    },
+                    {
+                        data: "category_id",
+                        dataFilter: "categories",
+                        searchable: true,
+                        render: function (data) {
+                            return escape_str(pnsCategoryName(data));
+                        }
+                    },
+                    {
+                        data: "expiry_date",
+                        type: "date",
+                        searchable: true,
+                        render: function (data) {
+                            return "<span class=\"dateexpiry" + (data && new Date(data) < new Date() ? " expired" : "") + "\">" + (data ? escape_str($date(data)) : "") + "</span>";
+                        }
+                    },
+                    {
+                        data: "checkouts_count",
+                        searchable: true,
+                        render: function (data, type, row) {
+                            const checkouts = row.checkouts_count || 0;
+                            const overdues = row.overdues_count || 0;
+                            if (overdues) {
+                                return "<span class=\"overdue\"><strong>" + overdues + "</strong></span> / " + checkouts;
+                            }
+                            return "0 / " + checkouts;
+                        }
+                    },
+                    {
+                        data: "account_balance",
+                        searchable: true,
+                        render: function (data, type, row) {
+                            const balance = Number(row.account_balance || 0);
+                            let balance_str = balance.format_price();
+                            let rendered = "<span style=\"text-align: right; display: block;\"><a href=\"/cgi-bin/koha/members/boraccount.pl?borrowernumber=" + encodeURIComponent(row.patron_id) + "\">";
+                            if (balance < 0) {
+                                rendered += "<span class=\"credit\">" + balance_str + "</span>";
+                            } else if (balance > 0) {
+                                rendered += "<span class=\"debit\"><strong>" + balance_str + "</strong></span>";
+                            } else {
+                                rendered += balance_str;
+                            }
+                            rendered += "</a></span>";
+                            return rendered;
+                        }
+                    },
+                    {
+                        data: "staff_notes",
+                        searchable: true
+                    },
+                    {
+                        data: "statistics_1",
+                        dataFilter: "av_bsort1",
+                        searchable: true,
+                        render: function (data) {
+                            if (data === null || data === undefined) {
+                                return "";
+                            }
+                            const bsort1 = pnsBsort1Map[data.toString()];
+                            return escape_str(bsort1 ? bsort1.lib : data);
+                        }
+                    },
+                    {
+                        data: "statistics_2",
+                        dataFilter: "av_bsort2",
+                        searchable: true,
+                        render: function (data) {
+                            if (data === null || data === undefined) {
+                                return "";
+                            }
+                            const bsort2 = pnsBsort2Map[data.toString()];
+                            return escape_str(bsort2 ? bsort2.lib : data);
+                        }
+                    },
+                    {
+                        data: "extended_attributes",
+                        searchable: true,
+                        render: function (data, type, row) {
+                            return pnsAttributesHtml(row);
+                        }
+                    },
+                    {
+                        data: function (row) {
+                            const patron_id = encodeURIComponent(row.patron_id);
+                            let action_node = "";
+                            [% IF CAN_user_borrowers_edit_borrowers %]
+                                action_node += "<a href=\"/cgi-bin/koha/members/memberentry.pl?op=edit_form&amp;destination=circ&amp;borrowernumber=" + patron_id + "\" class=\"btn btn-default btn-xs\"><i class=\"fa-solid fa-pencil\" aria-hidden=\"true\"></i> " + _("Edit") + "</a> ";
+                            [% END %]
+                            [% IF CAN_user_circulate_circulate_remaining_permissions %]
+                                action_node += "<a class=\"btn btn-default btn-xs\" href=\"/cgi-bin/koha/circ/circulation.pl?borrowernumber=" + patron_id + "\"><i class=\"fa fa-barcode\"></i> " + _("Check out") + "</a>";
+                            [% END %]
+                            return action_node;
+                        },
+                        searchable: false
+                    }
+                ]
+            }, table_settings, 1, null, {
+                libraries: pnsLibraries,
+                categories: pnsCategories,
+                av_bsort1: pnsBsort1,
+                av_bsort2: pnsBsort2
+            });
+
+            const table = tableNode.DataTable();
+
+            $("#pns-search-form").on("submit", function (event) {
+                event.preventDefault();
+                searchHasRun = true;
+                parentBlock.find(".firstletter_filter").val("");
+                resultsBlock.show();
+                pnsUpdateSearchDescription();
+                table.page("first").draw("page");
+            });
+
+            $("#pns-clear-search").on("click", function () {
+                searchHasRun = false;
+                $("#pns-query").val("");
+                $("#pns-field").val("standard");
+                $("#pns-fallback-like").prop("checked", false);
+                $("#pns-boolean-mode").prop("checked", false);
+                parentBlock.find(".firstletter_filter").val("");
+                clearMessages();
+                parentBlock.find(".search_description").text("").hide();
+                table.columns().search("");
+                tableNode.find("thead tr:eq(1) input").val("");
+                tableNode.find("thead tr:eq(1) select").val("");
+                table.clear().draw();
+                resultsBlock.hide();
+            });
+
+            $(".filterByLetter").on("click", function (event) {
+                event.preventDefault();
+                searchHasRun = true;
+                parentBlock.find(".firstletter_filter").val($(this).text());
+                resultsBlock.show();
+                pnsUpdateSearchDescription();
+                table.page("first").draw("page");
+            });
+        });
+    </script>
+[% END %]
 
 [% INCLUDE 'intranet-bottom.inc' %]
-[% BLOCK jsinclude %][% END %]
