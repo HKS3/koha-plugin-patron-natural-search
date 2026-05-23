@@ -4,6 +4,23 @@ Prototype patron search plugin for Koha using MariaDB `FULLTEXT` indexes and
 `MATCH ... AGAINST` in natural language or boolean mode. It does not use
 Elasticsearch.
 
+## Staff page
+
+After installing and enabling the plugin, open the staff tool page from:
+
+```text
+/cgi-bin/koha/plugins/run.pl?class=Koha::Plugin::HKS3::PatronNaturalSearch&method=tool
+```
+
+In the KTD `pns` instance used during development:
+
+```text
+http://pns-intra.localhost:8080/cgi-bin/koha/plugins/run.pl?class=Koha::Plugin::HKS3::PatronNaturalSearch&method=tool
+```
+
+The page includes the usual patron-home actions such as new patron, quick add,
+and patron lists, plus a MariaDB FULLTEXT search form.
+
 ## API
 
 After installing and enabling the plugin:
@@ -38,6 +55,36 @@ patron attributes.
 `standard` searches Koha's `DefaultPatronSearchFields` plus patron attribute
 types that are marked `staff_searchable` and `searched_by_default` when
 `ExtendedPatronAttributes` is enabled.
+
+## Search examples
+
+Natural-language search across the default patron fields:
+
+```text
+/api/v1/contrib/patron_natural_search/patrons?query=Oxford&searchfieldstype=standard
+```
+
+Boolean prefix search:
+
+```text
+/api/v1/contrib/patron_natural_search/patrons?query=Oxf*&match_mode=boolean&searchfieldstype=standard
+```
+
+Search a specific patron attribute code:
+
+```text
+/api/v1/contrib/patron_natural_search/patrons?query=Oxford&searchfieldstype=_ATTR_SCHOOLID
+```
+
+Cross-field boolean search using the denormalized `all` document:
+
+```text
+/api/v1/contrib/patron_natural_search/patrons?query=+Oxford%20+john*&match_mode=boolean&searchfieldstype=all
+```
+
+The last example matches patrons where `Oxford` appears somewhere in the
+patron's indexed data, such as an attribute, and `john*` appears somewhere else,
+such as firstname, surname, or userid.
 
 ## Indexes
 
