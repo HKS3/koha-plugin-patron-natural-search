@@ -1,0 +1,185 @@
+[% SET footerjs = 1 %]
+[% INCLUDE 'doc-head-open.inc' %]
+<title>Patron Natural Search</title>
+[% INCLUDE 'doc-head-close.inc' %]
+</head>
+<body id="tools_plugins" class="tools">
+[% INCLUDE 'header.inc' %]
+[% INCLUDE 'prefs-admin-search.inc' %]
+
+<div id="breadcrumbs">
+    <a href="/cgi-bin/koha/mainpage.pl">Home</a>
+    &rsaquo; <a href="/cgi-bin/koha/plugins/plugins-home.pl">Plugins</a>
+    &rsaquo; Patron Natural Search
+</div>
+
+<div class="main container-fluid">
+    <div class="row">
+        <div class="col-sm-10 col-sm-push-2">
+            <main>
+                <h1>Patron Natural Search</h1>
+
+                [% INCLUDE 'patron-toolbar.inc' %]
+                [% INCLUDE 'noadd-warnings.inc' %]
+
+                [% IF CAN_user_borrowers_edit_borrowers && pending_borrower_modifications %]
+                    <div class="pending-info" id="patron_updates_pending">
+                        <a href="/cgi-bin/koha/members/members-update.pl">Patrons requesting modifications</a>:
+                        <span class="badge bg-info-subtle"><a href="/cgi-bin/koha/members/members-update.pl">[% pending_borrower_modifications | html %]</a></span>
+                    </div>
+                [% END %]
+
+                <div class="page-section">
+                    <form id="pns-search-form" class="form-inline">
+                        <div class="form-group">
+                            <label for="pns-query">Search</label>
+                            <input id="pns-query" class="form-control" type="text" size="40" autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label for="pns-field">Field</label>
+                            <select id="pns-field" class="form-control">
+                                <option value="standard">Standard</option>
+                                <option value="all">All patron data</option>
+                                <option value="surname">Surname</option>
+                                <option value="cardnumber">Card number</option>
+                                <option value="userid">Username</option>
+                                <option value="all_emails">All emails</option>
+                                <option value="all_phones">All phones</option>
+                                <option value="full_address">Full address</option>
+                                <option value="borrowernumber">Borrowernumber</option>
+                                <option value="dateofbirth">Date of birth</option>
+                                <option value="sort1">Sort 1</option>
+                                <option value="sort2">Sort 2</option>
+                                [% IF attribute_search_options.size %]
+                                    <optgroup label="Patron attributes">
+                                        [% FOREACH attribute IN attribute_search_options %]
+                                            <option value="_ATTR_[% attribute.code | html %]">[% attribute.description | html %] ([% attribute.code | html %])</option>
+                                        [% END %]
+                                    </optgroup>
+                                [% END %]
+                            </select>
+                        </div>
+                        <label class="checkbox-inline">
+                            <input id="pns-fallback-like" type="checkbox" value="1">
+                            LIKE fallback
+                        </label>
+                        <label class="checkbox-inline">
+                            <input id="pns-boolean-mode" type="checkbox" value="1">
+                            Boolean mode
+                        </label>
+                        <button class="btn btn-primary" type="submit">Search</button>
+                    </form>
+
+                    <div id="pns-meta" style="margin: 1em 0;"></div>
+                    <div id="pns-error" class="alert alert-warning" style="display:none;"></div>
+
+                    <table id="pns-results" class="table table-bordered table-striped" style="display:none;">
+                        <thead>
+                            <tr>
+                                <th>Score</th>
+                                <th>Card</th>
+                                <th>Name</th>
+                                <th>Library</th>
+                                <th>Category</th>
+                                <th>Expires</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </main>
+        </div>
+        <div class="col-sm-2 col-sm-pull-10">
+            [% INCLUDE 'tools-menu.inc' %]
+        </div>
+    </div>
+</div>
+
+<script>
+const pnsApiUrl = "[% api_search_url | html %]";
+
+function pnsEscape(value) {
+    return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
+function pnsRender(payload) {
+    const rows = Array.isArray(payload.data) ? payload.data : [];
+    const table = document.getElementById("pns-results");
+    const tbody = table.querySelector("tbody");
+    const meta = document.getElementById("pns-meta");
+
+    meta.textContent = rows.length
+        ? `Showing ${rows.length} of ${payload.total} result(s).`
+        : "No results found.";
+
+    if (!rows.length) {
+        table.style.display = "none";
+        tbody.innerHTML = "";
+        return;
+    }
+
+    tbody.innerHTML = rows.map((row) => {
+        const patronId = encodeURIComponent(row.patron_id);
+        const name = [row.surname, row.firstname].filter(Boolean).join(", ");
+        return `
+            <tr>
+                <td>${pnsEscape(row.natural_score)}</td>
+                <td><a href="/cgi-bin/koha/circ/circulation.pl?borrowernumber=${patronId}">${pnsEscape(row.cardnumber)}</a></td>
+                <td><a href="/cgi-bin/koha/members/moremember.pl?borrowernumber=${patronId}">${pnsEscape(name)}</a></td>
+                <td>${pnsEscape(row.library_id)}</td>
+                <td>${pnsEscape(row.category_id)}</td>
+                <td>${pnsEscape(row.expiry_date)}</td>
+            </tr>
+        `;
+    }).join("");
+    table.style.display = "";
+}
+
+async function pnsSearch() {
+    const query = document.getElementById("pns-query").value.trim();
+    const field = document.getElementById("pns-field").value;
+    const fallbackLike = document.getElementById("pns-fallback-like").checked ? "1" : "0";
+    const matchMode = document.getElementById("pns-boolean-mode").checked ? "boolean" : "natural";
+    const params = new URLSearchParams({
+        query,
+        searchfieldstype: field,
+        match_mode: matchMode,
+        fallback_like: fallbackLike,
+        page: "1",
+        per_page: "50"
+    });
+    const error = document.getElementById("pns-error");
+    const meta = document.getElementById("pns-meta");
+
+    error.style.display = "none";
+    error.textContent = "";
+    meta.textContent = "Loading...";
+
+    try {
+        const response = await fetch(`${pnsApiUrl}?${params.toString()}`, {
+            headers: { Accept: "application/json" }
+        });
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        pnsRender(await response.json());
+    } catch (err) {
+        meta.textContent = "";
+        error.textContent = `Request failed: ${err.message}`;
+        error.style.display = "";
+    }
+}
+
+document.getElementById("pns-search-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    pnsSearch();
+});
+</script>
+
+[% INCLUDE 'intranet-bottom.inc' %]
+[% BLOCK jsinclude %][% END %]
